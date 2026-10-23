@@ -1,0 +1,46 @@
+# Android platform build for nxnative. Vulkan replay and libc adapters originate
+# in d2r-mobile v2.0.0; the Horizon runtime remains nxnative's.
+cmake_minimum_required(VERSION 3.22)
+project(nxnative_android LANGUAGES C CXX ASM)
+set(DM ${CMAKE_CURRENT_SOURCE_DIR}/..)
+set(HOST ${DM}/host)
+if(NOT NX_GEN_DIR)
+  message(FATAL_ERROR "NX_GEN_DIR must point to the private generated profile directory")
+endif()
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_subdirectory(../gfx/vulkan ${CMAKE_CURRENT_BINARY_DIR}/vulkan)
+target_include_directories(dm_vulkan_engine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/compat/include)
+file(GLOB HLE CONFIGURE_DEPENDS ${HOST}/hle_*.c)
+list(FILTER HLE EXCLUDE REGEX "/hle_(audio|movie|movie_avc|bigstack|lifecycle)\\.c$")
+file(GLOB GFX CONFIGURE_DEPENDS ${DM}/gfx/*.c ${DM}/gfx/nvn/*.c ${DM}/gfx/tex/*.c)
+set(ASM)
+foreach(input ${HOST}/entry.S ${DM}/gfx/nvn/nvn_entry.S ${DM}/gfx/nvn/nvn_thunks.S)
+  get_filename_component(name ${input} NAME)
+  set(output ${CMAKE_CURRENT_BINARY_DIR}/asm/${name})
+  add_custom_command(OUTPUT ${output} COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/asm_elf.py ${input} ${output} DEPENDS ${input} ${CMAKE_CURRENT_SOURCE_DIR}/tools/asm_elf.py VERBATIM)
+  list(APPEND ASM ${output})
+endforeach()
+add_library(nxcore STATIC ${HOST}/loader.c ${HOST}/hle.c ${HOST}/thread.c
+  ${HOST}/crash.c port/probe_android.c port/hle_bigstack_android.c port/lifecycle_android.c ${HLE} ${GFX} ${ASM}
+  compat/clonefile.c compat/digest.c compat/mach_thread.c compat/mach_symbols.c
+  ${DM}/gfx/vulkan/nvn_vk.c)
+target_include_directories(nxcore PUBLIC ${HOST} ${DM}/gfx/nvn/include ${DM}/gfx/nvn
+  ${CMAKE_CURRENT_SOURCE_DIR}/compat/include ${NX_GEN_DIR}
+  ${DM}/games/0100346017304000)
+target_compile_options(nxcore PUBLIC "$<$<COMPILE_LANGUAGE:C,CXX>:-O1;-g;-fno-strict-aliasing;-mno-outline-atomics;-Wno-format;-Wno-unused-function;-include;${CMAKE_CURRENT_SOURCE_DIR}/compat/include/dm_android_compat.h>")
+target_link_libraries(nxcore PUBLIC dm_vulkan_engine aaudio android log m dl)
+
+add_library(taikou SHARED ${HOST}/main.c port/shell_android.c port/hle_audio_android.c vulkan_present.cpp)
+set_source_files_properties(${HOST}/main.c PROPERTIES COMPILE_DEFINITIONS "main=dm_main")
+target_compile_definitions(taikou PRIVATE DM_PHONE=1)
+target_link_libraries(taikou PRIVATE -Wl,--whole-archive nxcore -Wl,--no-whole-archive vulkan)
+
+target_link_options(taikou PRIVATE -Wl,-Bsymbolic -Wl,--error-limit=0)
+
+file(GLOB_RECURSE VPX_SRC CONFIGURE_DEPENDS ${DM}/third_party/libvpx/*.c)
+add_library(nxvpx STATIC ${VPX_SRC})
+target_include_directories(nxvpx PUBLIC ${DM}/third_party/libvpx ${DM}/third_party/libvpx/config)
+target_compile_options(nxvpx PRIVATE -O2)
+target_sources(taikou PRIVATE port/hle_movie_android.c port/movie_unavailable.c)
+target_include_directories(taikou PRIVATE ${DM}/third_party/stb_vorbis)
+target_link_libraries(taikou PRIVATE nxvpx)

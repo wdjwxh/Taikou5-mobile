@@ -1,0 +1,18 @@
+{
+  "version": "0.1.2-preview",
+  "date": "2026-10-23",
+  "apk": "Taikou5-mobile-preview.apk",
+  "size": 6002009,
+  "sha256": "23c791dd0fea080d7ece4926637e4ca3c355f84dc095e798bb440ed5e74c713e",
+  "abi": "arm64-v8a",
+  "minimum_android_api": 31,
+  "target_android_api": 28,
+  "vulkan_baseline": "1.1",
+  "game_content_included": false,
+  "signing": "local development certificate, private key excluded",
+  "upstreams": {
+    "nxnative": "a08bbdd3ba144a6de4db39576cd0512786573eb7",
+    "d2r-mobile": "b811b90172f4eb40ec1bc89d903308e0c5ab88d0"
+  },
+  "version_code": 3
+}

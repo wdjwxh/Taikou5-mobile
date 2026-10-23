@@ -1,0 +1,9 @@
+* text=auto
+*.py text eol=lf
+*.sh text eol=lf
+*.md text eol=lf
+*.tsv text eol=lf
+*.png binary
+*.dll binary
+*.pdb binary
+dm/gfx/tools/dmsh_xlate_bin/dmsh_xlate binary
