@@ -119,7 +119,13 @@ static Result mount(const char *name, const char *dir, int ro) { return mount_ex
 // APFS is case-insensitive by default, Horizon paths are case-sensitive: every component is looked up exactly by guest name.
 // Ordinary host names are unchanged; only when a name collides on the host is a separate physical name chosen, with the guest name stored in an xattr.
 // clonefile preserves xattr, so save Commit/remount needs no separate mapping table; enumeration must not leak physical aliases.
-#define FS_GUEST_NAME "org.d2rmobile.guest-name"   // the name this host has always used: existing saves carry it, so it is kept
+#ifdef __ANDROID__
+// Linux requires an xattr namespace, including when removing an absent attribute.
+// clonefile's Android implementation preserves user.* across save transactions.
+#define FS_GUEST_NAME "user.org.d2rmobile.guest-name"
+#else
+#define FS_GUEST_NAME "org.d2rmobile.guest-name"   // Preserve existing Apple save metadata.
+#endif
 static int guest_name(const char *parent, const char *physical, char *out, size_t n) {
     // Only the physical names chosen on a case collision (.dm-case-N) carry the xattr (set_guest_name writes it only when the physical name differs from the guest name); any other physical name is the guest name,
     // so no per-entry getxattr is needed -- that was one system call per entry when listing, seconds for the 216,000 entries Engage walks in RomFS at boot

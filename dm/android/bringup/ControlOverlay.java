@@ -41,13 +41,13 @@ public final class ControlOverlay extends View {
  float left=leftSpace>dp(40)?safeLeft+leftSpace/2:safeLeft+dp(48);
  float right=rightSpace>dp(40)?w-safeRight-rightSpace/2:w-safeRight-dp(48);
  float available=Math.min(leftSpace,rightSpace);
- r=Math.min(dp(30),Math.max(dp(19),available*.39f));if(expanded)r=Math.min(r,(h-safeTop-safeBottom)*.052f);
+ r=Math.min(dp(30),Math.max(dp(19),available*.39f));r=Math.min(r,(h-safeTop-safeBottom)*(expanded?.052f:.060f));
  jx=left;jy=safeTop+(h-safeTop-safeBottom)*.72f;jr=Math.min(dp(64),Math.max(r*1.2f,leftSpace*.46f));
- float[] ys=expanded?new float[]{.68f,.80f,.44f,.56f,.30f,.20f,.42f,.32f,.08f,.18f,.93f,.92f,.055f}:new float[]{.66f,.83f,.43f,.54f,.23f,.23f,.37f,.37f,.10f,.10f,.93f,.93f,.055f};
+ float[] ys=expanded?new float[]{.68f,.80f,.44f,.56f,.30f,.20f,.42f,.32f,.08f,.18f,.93f,.92f,.055f}:new float[]{.68f,.83f,.38f,.53f,.23f,.23f,.37f,.37f,.10f,.10f,.93f,.93f,.055f};
  for(int i=0;i<13;i++){cx[i]=(i==4||i==6||i==9||i==10||i==12)?left:right;cy[i]=safeTop+(h-safeTop-safeBottom)*ys[i];}cy[12]=Math.max(cy[12],safeTop+r+dp(6));
  for(int i=0;i<13;i++){float[] point={cx[i],cy[i]};avoidCutouts(point,r*1.2f,false);cx[i]=point[0];cy[i]=point[1];}
  float[] point={jx,jy};avoidCutouts(point,jr*1.4f,true);jx=point[0];jy=point[1];}
- boolean visible(int i){return i<2||i==12||expanded;}
+ boolean visible(int i){return i<4||i==5||i==12||expanded;}
  int hit(float x,float y){for(int i=0;i<13;i++)if(visible(i)&&Math.hypot(x-cx[i],y-cy[i])<=r*1.2)return i;
  return joy<0&&Math.hypot(x-jx,y-jy)<=jr*1.4?-2:-3;}
  protected void onDraw(Canvas c){super.onDraw(c);layoutControls();

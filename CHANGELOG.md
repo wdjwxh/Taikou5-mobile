@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.5-preview — local device preview
+
+- Use the Linux `user.*` namespace for save filename metadata on Android; prevent ENOTSUP from deleting newly created save files. Preserve transactional clone/swap commits.
+- Suspend hardware audio in Activity.onPause and resume it in onResume; retain silent consumption to keep guest audio queues progressing.
+- Reuse the process-owned guest when Android recreates the Activity, avoiding duplicate Vulkan initialization.
+- Show X, Y and R alongside A/B by default in the right margin; keep the remaining buttons behind the expand control.
+
 ## 0.1.4-preview — local device preview
 
 - Open the ZIP document picker in portrait; restore landscape on selection or cancellation without recreating the import worker.

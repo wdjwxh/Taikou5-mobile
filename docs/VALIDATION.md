@@ -38,3 +38,18 @@ Gesture input follow-up (0.1.4-preview): the phone logged raw touchscreen reads 
 Physical-phone confirmation: 0.1.4-preview / versionCode 5 installed in place on the connected 2608×1200 device, preserving imported resources. After entering the title/menu with virtual A, a direct game-image tap on Start New Game reached scenario selection; private evidence phone-gesture-fixed.png. This confirms menu tap activation on this device, not all gameplay gestures or a full playthrough.
 
 中文：0.1.4-preview 已覆盖安装到真机，保留资源。用 A 进入主菜单后，直接点游戏画面的「开始新游戏」进入剧本选择，真机点击链路已验证；不代表全部游戏流程和手势均已验证。
+
+
+## Save and Activity lifecycle fix (0.1.5-preview, 2026-10-23)
+
+Device: Xiaomi 17 Max (reported model `2605EPN8EC`), Android 16/API 36, 2608×1200. Game resources: existing v196608 import. Final shell: versionCode 6; APK SHA-256 `13cc0ff67faf8b2fe7d03fedea8ebc765d2157ee6bacf4c195de85448752cf7c`.
+
+Before the fix, confirming a blank save slot produced `CreateFile errno=95` and subsequent `pwrite errno=9`; both committed and working save directories were empty. The macOS guest-name xattr lacked Linux's required namespace. Android now uses `user.org.d2rmobile.guest-name`; the existing clone implementation preserves user attributes.
+
+After the fix, the phone completed two atomic save commits (8,802 and 2,989 microseconds in the diagnostic build), creating a 481,102-byte slot and 28,404-byte system save. The final APK, with verbose FS tracing disabled, was installed over that build. Cold startup displayed slot 1; selecting and confirming it returned to Kinoshita in Kiyosu on 1560-02-30. This verifies actual persistence and reload, not just a success toast. No resource regeneration was required.
+
+On the final APK, Home for five seconds and return logged audio suspend/resume. Hardware callback counts were 61,477 at pause, 61,486 when resume was logged, then 62,026 after two seconds in foreground; asynchronous stop/start may include a few boundary callbacks. A CLEAR_TOP Activity recreation reused the existing guest, preserved the loaded scene and resumed rendering, without the earlier duplicate Vulkan initialization failure. User also reported the phone test looked good. This is a focused lifecycle check, not an audio-interruption/full-playthrough guarantee.
+
+R/X/Y/A/B were visible by default in the right black margin on the final phone capture. Remaining controls still expand through `...`. Build/signature verification and public-source/APK-content audit passed. Private screenshots, logs and saves stay outside this repository.
+
+中文：真机 Android 16 上已复现扩展属性名称不合法导致创建存档失败，修复后完成真实事务提交。最终包覆盖安装后能看到第 1 槽，并实际载入清洲城场景。已检查切后台五秒、返回及 Activity 重建，音频挂起/恢复和画面恢复正常；重建复用现有游戏，未再重复初始化 Vulkan。右侧默认显示 R/X/Y/A/B。此结论仅覆盖本次针对性流程，不代表完整通关。

@@ -12,6 +12,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
  static native void touch(int n,float[] coords);
  static native void pad(long buttons);
  static native void virtualPad(long buttons,float lx,float ly);
+ static native void foreground(boolean active);
  ControlOverlay controls;
  long keys;
  int bit(int key){switch(key){case KeyEvent.KEYCODE_BUTTON_A:case KeyEvent.KEYCODE_ENTER:return 0;case KeyEvent.KEYCODE_BUTTON_B:case KeyEvent.KEYCODE_ESCAPE:return 1;case KeyEvent.KEYCODE_BUTTON_X:return 2;case KeyEvent.KEYCODE_BUTTON_Y:return 3;case KeyEvent.KEYCODE_BUTTON_THUMBL:return 4;case KeyEvent.KEYCODE_BUTTON_THUMBR:return 5;case KeyEvent.KEYCODE_BUTTON_L1:return 6;case KeyEvent.KEYCODE_BUTTON_R1:return 7;case KeyEvent.KEYCODE_BUTTON_L2:return 8;case KeyEvent.KEYCODE_BUTTON_R2:return 9;case KeyEvent.KEYCODE_BUTTON_START:return 10;case KeyEvent.KEYCODE_BUTTON_SELECT:return 11;case KeyEvent.KEYCODE_DPAD_LEFT:return 12;case KeyEvent.KEYCODE_DPAD_UP:return 13;case KeyEvent.KEYCODE_DPAD_RIGHT:return 14;case KeyEvent.KEYCODE_DPAD_DOWN:return 15;default:return -1;}}
@@ -81,6 +82,11 @@ setContentView(frame);}
  }
  public void surfaceCreated(SurfaceHolder h){surface(h.getSurface(),getWindowManager().getDefaultDisplay().getRefreshRate());if(!started){started=true;File root=new File(getFilesDir(),"game");for(String s:new String[]{"save","current/temp"})new File(root,s).mkdirs();start(new File(root,"current").getAbsolutePath());}}
  public void surfaceChanged(SurfaceHolder h,int f,int w,int height){surface(h.getSurface(),getWindowManager().getDefaultDisplay().getRefreshRate());}
+ @Override protected void onResume(){super.onResume();foreground(true);}
+ @Override protected void onPause(){
+  if(controls!=null)controls.release();keys=0;pad(0);
+  foreground(false);super.onPause();
+ }
  public void onWindowFocusChanged(boolean focus){super.onWindowFocusChanged(focus);if(focus)fullscreen();if(!focus&&controls!=null){controls.release();keys=0;pad(0);}}
  public void surfaceDestroyed(SurfaceHolder h){surface(null,0);}
 }

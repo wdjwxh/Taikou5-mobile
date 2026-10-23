@@ -63,3 +63,7 @@ For an import error, check the version and complete merged RomFS first; do not r
 ## Display centering
 
 The window extends into the cutout area. The 16:9 game viewport is fitted to the entire window without cutout insets; only virtual controls avoid the cutout bounds. On a 2608×1200 landscape screen the viewport is 2133×1200 with 237/238 px side margins (one-pixel rounding). Touch uses the same viewport. The launcher uses symmetric safe padding.
+
+## Default virtual buttons
+
+The right margin shows R, X, Y, A and B by default. R can fast-forward dialogue when the game supports it. Tap the left `...` button for the remaining controls. Backgrounding the Activity suspends hardware audio; returning resumes it. Save files remain in app-private storage across same-signature APK updates.
