@@ -2,6 +2,8 @@
 
 [简体中文](GAME_FILES.zh-CN.md) · [README](../README.md)
 
+Package integrity is checked against the file hashes in that package's own game.json, not a fixed ZIP hash from the developer. ZIP name, timestamps and compression may differ. The shell still requires the documented title/build and package schema; another region or game update needs a compatible profile rather than removing these checks.
+
 ## Supported input
 
 This preview accepts one verified build: Taikou Risshiden V DX, Switch title `0100346017304000`, update `v196608`. Cat Officer DLC `0100346017305001` is excluded and not required.

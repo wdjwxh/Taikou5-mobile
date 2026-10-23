@@ -9,13 +9,99 @@
 #include "dm.h"
 #include "front.h"
 #include <pthread.h>
+#include <time.h>
 enum { F_EMPTY, F_DOWN, F_LIFTED };
 static struct { int st, reported, again; float x, y, ax, ay; } g_f[16];   // again/ax/ay: the same id was pressed again before End went out (the next read reports End first, then the new Start)
 static pthread_mutex_t g_tl = PTHREAD_MUTEX_INITIALIZER;
 static int64_t g_tsamp; static uint64_t g_tlast_ns;
 
+// Horizon GestureState ABI (0x60 bytes). Keep a newest-first history: callers
+// may query twice per frame, so reads must not consume Tap/Pan events.
+// Taikou v196608 main+0x42f7cc reads raw touches for position but dispatches
+// menu activation from GestureType_Tap (5), not from TouchState Start/End.
+typedef struct {
+    uint64_t sample, context;
+    uint32_t type, direction;
+    int32_t x, y, dx, dy;
+    float vx, vy;
+    uint32_t attributes;
+    float scale, rotation;
+    int32_t count;
+    struct { int32_t x, y; } points[4];
+} HostGesture;
+_Static_assert(sizeof(HostGesture)==0x60,"GestureState ABI");
+static HostGesture g_gestures[16];
+static int g_gesture_count, g_gesture_active, g_gesture_drag, g_gesture_press, g_gesture_blocked;
+static int g_gesture_id, g_gesture_x, g_gesture_y, g_gesture_start_x, g_gesture_start_y;
+static uint64_t g_gesture_sample, g_gesture_context, g_gesture_start_ns;
+static uint64_t gesture_time(void) {
+    struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t);
+    return (uint64_t)t.tv_sec*1000000000ull+(uint64_t)t.tv_nsec;
+}
+static int gesture_coord(float v,int hi) {
+    int r=(int)(v*(hi+1)); return r<0?0:r>hi?hi:r;
+}
+static void gesture_emit(uint32_t type,int x,int y,int dx,int dy,int points,uint32_t attributes) {
+    memmove(g_gestures+1,g_gestures,15*sizeof(HostGesture));
+    HostGesture *g=&g_gestures[0];memset(g,0,sizeof(*g));
+    g->sample=++g_gesture_sample;g->context=g_gesture_context;g->type=type;
+    g->x=x;g->y=y;g->dx=dx;g->dy=dy;g->count=points;
+    g->attributes=attributes;g->scale=1.0f;
+    if(points){g->points[0].x=x;g->points[0].y=y;}
+    if(g_gesture_count<16)++g_gesture_count;
+}
+// Called under g_tl; multitouch cancels this single-finger recognizer rather
+// than turning a pinch or a control finger into an accidental menu tap.
+static void gesture_update(const dm_touch *t,int n) {
+    if(n>1){
+        if(g_gesture_active)gesture_emit(2,g_gesture_x,g_gesture_y,0,0,0,0);
+        g_gesture_active=0;g_gesture_blocked=1;return;
+    }
+    if(g_gesture_blocked){if(!n)g_gesture_blocked=0;return;}
+    uint64_t ns=gesture_time();
+    if(n==1){
+        int x=gesture_coord(t[0].x,1279),y=gesture_coord(t[0].y,719);
+        if(g_gesture_active&&g_gesture_id!=(int)t[0].id){
+            gesture_emit(2,g_gesture_x,g_gesture_y,0,0,0,0);g_gesture_active=0;
+        }
+        if(!g_gesture_active){
+            g_gesture_active=1;g_gesture_drag=g_gesture_press=0;g_gesture_id=t[0].id;
+            g_gesture_start_x=x;g_gesture_start_y=y;g_gesture_start_ns=ns;++g_gesture_context;
+            gesture_emit(3,x,y,0,0,1,1u<<4);
+        }else{
+            int sx=x-g_gesture_start_x,sy=y-g_gesture_start_y;
+            if(sx*sx+sy*sy>100)g_gesture_drag=1;
+            if(g_gesture_drag&&(x!=g_gesture_x||y!=g_gesture_y))
+                gesture_emit(6,x,y,x-g_gesture_x,y-g_gesture_y,1,0);
+        }
+        g_gesture_x=x;g_gesture_y=y;
+    }else if(g_gesture_active){
+        if(!g_gesture_drag&&!g_gesture_press&&ns-g_gesture_start_ns<=500000000ull)
+            gesture_emit(5,g_gesture_x,g_gesture_y,0,0,1,0);
+        gesture_emit(1,g_gesture_x,g_gesture_y,0,0,0,0);g_gesture_active=0;
+    }
+}
+int gesture_fill(void *out,int n) {
+    if(n<=0)return 0;if(n>16)n=16;
+    pthread_mutex_lock(&g_tl);
+    if(g_gesture_active&&!g_gesture_drag&&!g_gesture_press&&gesture_time()-g_gesture_start_ns>500000000ull){
+        gesture_emit(4,g_gesture_x,g_gesture_y,0,0,1,0);g_gesture_press=1;
+    }
+    int count=n<g_gesture_count?n:g_gesture_count;
+    memcpy(out,g_gestures,(size_t)count*sizeof(HostGesture));
+    pthread_mutex_unlock(&g_tl);return count;
+}
+
+void dm_touch_cancel(void) {
+    pthread_mutex_lock(&g_tl);
+    if(g_gesture_active)gesture_emit(2,g_gesture_x,g_gesture_y,0,0,0,0);
+    g_gesture_active=g_gesture_blocked=0;memset(g_f,0,sizeof(g_f));
+    pthread_mutex_unlock(&g_tl);
+}
+
 void dm_touch_set(const dm_touch *t, int n) {
     pthread_mutex_lock(&g_tl);
+    gesture_update(t,n);
     int seen[16] = {0};
     for (int i = 0; i < n; i++) {
         uint32_t id = t[i].id; if (id >= 16) continue;
@@ -58,7 +144,7 @@ int touch_fill_n(void *out, int max, uint64_t now_ns) {
     pthread_mutex_unlock(&g_tl);
     int32_t cnt = k; memcpy(o + 0, &samp, 8); memcpy(o + 8, &cnt, 4);
     // DM_TOUCH_LOG=1 (acceptance diagnostics): each read with non-zero touch points logs one line -- sample number, touch count, and for each point finger_id / panel x,y / attributes (1 Start, 2 End); capped at 500 lines
-    static int lg = -1, nl; if (lg < 0) lg = getenv("DM_TOUCH_LOG") != NULL;
+    static int lg = -1, nl; if (lg < 0) lg = getenv("DM_TOUCH_LOG") && atoi(getenv("DM_TOUCH_LOG")) != 0;
     if (lg && k && nl < 500) {
         char b[256]; int m = snprintf(b, sizeof b, "touch read sample %lld points %d", (long long)samp, k);
         for (int i = 0; i < k && m < (int)sizeof b - 40; i++) { int32_t v[4]; memcpy(v, o + 0x10 + 0x28 * i + 0x08, 16);

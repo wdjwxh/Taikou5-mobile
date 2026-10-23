@@ -28,3 +28,13 @@ The public build disables the fixture. That APK reached the v196608 Kinoshita pr
 The same-signature 0.1.3 APK was installed on the connected phone. Resource import and phone gameplay/performance remain pending. The earlier statement about CI describes initial local validation; the hosted workflow has since run successfully.
 
 中文：新增真实 Vulkan 定向检查，验证单字节覆盖、多级 mip/多层贴图、填充保留，以及延迟写回；两个必要合并均通过，完整覆盖和 CPU 持有路径无额外回读。关闭检查的公开 APK 已在模拟器进入更新版人物属性及忍者开场对话，采样期间合并和回读计数均为零。新版已覆盖安装到手机，手机资源导入和实际运行尚待验证。
+
+Portrait ZIP picker follow-up: emulator-5556 opened Android DocumentsUI at rotation 0 (1200×2608) from the landscape launcher. Cancelling returned to rotation 1 with the import button enabled. The updated shell passed the public-content audit; physical-phone picker behavior remains to be confirmed.
+
+Gesture input follow-up (0.1.4-preview): the phone logged raw touchscreen reads in handheld mode but menu taps had no effect. Original v196608 code at main+0x42f7cc reads raw coordinates and dispatches Tap/Pan from GetGestureStates (queried twice per frame), which previously returned zero. Added a persistent newest-first 0x60-byte gesture history. In emulator-5556 a tap on Start New Game reached the scenario selector (gesture-scenario.png in private build evidence). Earlier claims about menu touch were incomplete; raw touch logs alone do not prove menu activation. Multitouch cancels the single-finger recognizer; pinch, rotate and swipe remain unimplemented.
+
+中文：真机虽读到原始触点，但菜单依赖此前返回空结果的手势接口。补齐历史状态后，模拟器已通过直接点击「开始新游戏」进入剧本选择；此前只看触点日志的验证结论不充分。多指操作会取消单指识别，不宣称已实现缩放、旋转或快速滑动。
+
+Physical-phone confirmation: 0.1.4-preview / versionCode 5 installed in place on the connected 2608×1200 device, preserving imported resources. After entering the title/menu with virtual A, a direct game-image tap on Start New Game reached scenario selection; private evidence phone-gesture-fixed.png. This confirms menu tap activation on this device, not all gameplay gestures or a full playthrough.
+
+中文：0.1.4-preview 已覆盖安装到真机，保留资源。用 A 进入主菜单后，直接点游戏画面的「开始新游戏」进入剧本选择，真机点击链路已验证；不代表全部游戏流程和手势均已验证。

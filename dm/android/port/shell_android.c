@@ -24,7 +24,7 @@ snprintf(p,sizeof p,"%s/log.txt",root);freopen(p,"w",stderr);setvbuf(stderr,NULL
 snprintf(p,sizeof p,"%s/shaders",root);char error[1024];if(dm_android_vk_initialize(p,error,sizeof error)){fprintf(stderr,"[RED] Vulkan initialization: %s\n",error);return NULL;}
 snprintf(p,sizeof p,"%s/out",root);char *argv[]={"taikou",p,"main","subsdk0","sdk",NULL};dm_main(5,argv);return NULL;}
 JNIEXPORT void JNICALL Java_org_nxnative_taikou_MainActivity_start(JNIEnv *e,jclass c,jstring path){(void)c;const char *p=(*e)->GetStringUTFChars(e,path,NULL);snprintf(root,sizeof root,"%s",p);(*e)->ReleaseStringUTFChars(e,path,p);pthread_t t;pthread_attr_t a;pthread_attr_init(&a);pthread_attr_setstacksize(&a,8<<20);pthread_create(&t,&a,run,NULL);pthread_detach(t);pthread_attr_destroy(&a);}
-JNIEXPORT void JNICALL Java_org_nxnative_taikou_MainActivity_touch(JNIEnv *e,jclass c,jint n,jfloatArray coords){(void)c;static unsigned notes;if(notes++<32)LOG("[input] Android touch points=%d",n);dm_touch t[16];if(n<0||n>16)return;jfloat a[48];if(n)(*e)->GetFloatArrayRegion(e,coords,0,3*n,a);for(int i=0;i<n;i++)t[i]=(dm_touch){(uint32_t)a[3*i],a[3*i+1],a[3*i+2]};dm_touch_set(t,n);}
+JNIEXPORT void JNICALL Java_org_nxnative_taikou_MainActivity_touch(JNIEnv *e,jclass c,jint n,jfloatArray coords){(void)c;static unsigned notes;if(notes++<32)LOG("[input] Android touch points=%d",n);dm_touch t[16];if(n==-1){dm_touch_cancel();return;}if(n<0||n>16)return;jfloat a[48];if(n)(*e)->GetFloatArrayRegion(e,coords,0,3*n,a);for(int i=0;i<n;i++)t[i]=(dm_touch){(uint32_t)a[3*i],a[3*i+1],a[3*i+2]};dm_touch_set(t,n);}
 
 JNIEXPORT void JNICALL Java_org_nxnative_taikou_MainActivity_pad(JNIEnv *e,jclass c,jlong buttons){(void)e;(void)c;dm_pad_set((uint64_t)buttons,0,0,0,0);}
 

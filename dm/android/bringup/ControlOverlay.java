@@ -74,7 +74,7 @@ public final class ControlOverlay extends View {
  else if(kind>=0&&kind<12&&Math.hypot(x-cx[kind],y-cy[kind])<r*1.6)buttons|=1L<<bits[kind];
  else if(kind==-3&&id<16&&n<16&&x>=imageLeft&&x<imageLeft+imageWidth&&y>=imageTop&&y<imageTop+imageHeight){touches[3*n]=id;touches[3*n+1]=(x-imageLeft)/imageWidth;touches[3*n+2]=(y-imageTop)/imageHeight;n++;}}
  if(up){int id=e.getPointerId(changed);owners.delete(id);if(id==joy)joy=-1;}if(cancel){owners.clear();joy=-1;}
- knobX=lx;knobY=ly;MainActivity.virtualPad(buttons,lx,ly);MainActivity.touch(n,touches);invalidate();return true;}
+ knobX=lx;knobY=ly;MainActivity.virtualPad(buttons,lx,ly);MainActivity.touch(cancel?-1:n,touches);invalidate();return true;}
  protected void onSizeChanged(int w,int h,int oldw,int oldh){super.onSizeChanged(w,h,oldw,oldh);if(oldw>0&&(w!=oldw||h!=oldh))release();}
- public void release(){owners.clear();joy=-1;knobX=knobY=0;MainActivity.virtualPad(0,0,0);MainActivity.touch(0,new float[0]);invalidate();}
+ public void release(){owners.clear();joy=-1;knobX=knobY=0;MainActivity.virtualPad(0,0,0);MainActivity.touch(-1,new float[0]);invalidate();}
 }

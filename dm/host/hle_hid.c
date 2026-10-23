@@ -337,8 +337,9 @@ HLE_FORCE("_ZN2nn3hid21InitializeTouchScreenEii", "connect to the hid touch scre
     HLE_FORCE("_ZN2nn3hid19GetTouchScreenStateILm" #N "EEEvPNS0_16TouchScreenStateIXT_EEE", "touch screen current state (touch points only in handheld mode)", void, h_hid_Touch1_##N, void *s) { touch_read(s, N); } \
     HLE_FORCE("_ZN2nn3hid20GetTouchScreenStatesILm" #N "EEEiPNS0_16TouchScreenStateIXT_EEEi", "touch screen states: 1 entry (touch points only in handheld mode)", int, h_hid_TouchN_##N, void *s, int n) { if (n <= 0) return 0; touch_read(s, N); return 1; }
 TOUCH(1) TOUCH(2) TOUCH(3) TOUCH(4) TOUCH(5) TOUCH(6) TOUCH(7) TOUCH(8) TOUCH(9) TOUCH(10) TOUCH(11) TOUCH(12) TOUCH(13) TOUCH(14) TOUCH(15) TOUCH(16)
-HLE_FORCE("_ZN2nn3hid17InitializeGestureEv", "gestures; not provided by the host", void, h_hid_InitGesture, void) {}
-HLE_FORCE("_ZN2nn3hid16GetGestureStatesEPNS0_12GestureStateEi", "gesture states: 0 entries", int, h_hid_Gestures, void *out, int n) { (void)out; (void)n; return 0; }
+HLE_FORCE("_ZN2nn3hid17InitializeGestureEv", "initialize host gesture input", void, h_hid_InitGesture, void) {}
+int gesture_fill(void *out,int n);
+HLE_FORCE("_ZN2nn3hid16GetGestureStatesEPNS0_12GestureStateEi", "newest-first host tap/press/pan history", int, h_hid_Gestures, void *out, int n) { return dm_opmode()==0?gesture_fill(out,n):0; }
 
 // Six-axis details: the current state, at rest unless shaking, fusion off
 HLE_FORCE("_ZN2nn3hid17StopSixAxisSensorERKNS0_19SixAxisSensorHandleE", "six-axis sensor; always sampling on the host", void, h_hid_SixStop, const uint32_t *h) { (void)h; }

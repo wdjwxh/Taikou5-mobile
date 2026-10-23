@@ -38,6 +38,8 @@ files/game/save/      存档，替换 current/ 时保留
 files/game/current/temp/ 和 log.txt   临时数据及日志
 ```
 
+选择导入 ZIP 时系统文件选择器切为竖屏；选择文件或取消后恢复横屏。
+
 普通用户通过系统选择器导入，应用私有目录通常不能用文件管理器直接访问。**目前尚未提供图形化存档导入/导出。** 预览包可调试，高级用户可用 Python 通过 ADB 按二进制方式备份，避免 Windows 重定向损坏 tar：
 
 ```powershell
@@ -51,7 +53,7 @@ python -c "import subprocess,pathlib; pathlib.Path('taikou-save.tar').write_byte
 - 0.1.3-preview 已支持对 GPU 持有贴图的 CPU 部分写入合并；已解码 BC 的重新编码、多重采样贴图别名合并尚不支持。
 
 - 已验证模拟器标题、剧本选择与触摸，以及更新版的人物属性和开场场景；未完整通关或进行 Adreno 真机验证。
-- `GetGestureStates` 仍为空实现，双指缩放等手势尚不可用；更新版菜单的原生点击已验证。
+- `GetGestureStates` 已提供单指点击、长按和拖动历史；双指缩放、旋转和快速滑动识别尚未实现。已在模拟器验证单指点击能进入更新版菜单。
 - 系统文字输入、实体手柄完整模拟轴、后台及 Surface 恢复、存档管理 UI、着色器预热 UI 尚未完善。
 - VP9/Vorbis 影片走软件解码，在翻译 ARM 的模拟器上可能较慢；AAC/H.264 适配不支持。
 - Vulkan 当前支持本游戏使用的左上原点及 near=0 深度约定。部分通用新 NVN 命令、稀疏别名未实现，本次发布不是面向所有 Switch 游戏的通用运行器。

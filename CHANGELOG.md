@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4-preview — local device preview
+
+- Open the ZIP document picker in portrait; restore landscape on selection or cancellation without recreating the import worker.
+- Supply persistent newest-first Horizon gesture history for single-finger taps, presses and pans. Taikou uses gesture taps for menu activation even when raw touch coordinates already arrive correctly.
+- Cancel touches on focus loss without synthesizing a tap; honor DM_TOUCH_LOG=0. Existing personal resource ZIPs remain compatible.
+
 ## 0.1.3-preview — 2026-10-23
 
 - Merge GPU-owned image contents before partial CPU overwrites instead of aborting; preserve untouched mip/layer data and guest padding.

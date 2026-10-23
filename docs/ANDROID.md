@@ -38,6 +38,8 @@ files/game/save/      saves, preserved when replacing current/
 files/game/current/temp/ and log.txt   runtime scratch and diagnostics
 ```
 
+The ZIP picker opens in portrait and returns to landscape after selecting a file or cancelling.
+
 Normal users import through the system picker; app-private folders are not generally exposed to file managers. **A GUI save export/import feature is not implemented yet.** The preview is debuggable, so an advanced ADB backup can use Python to copy raw bytes safely on Windows:
 
 ```powershell
@@ -51,7 +53,7 @@ Keep backups private. Test backup/restore before relying on a long playthrough. 
 - Partial CPU writes to GPU-owned textures are merged in 0.1.3-preview. Decoded-BC re-encoding and multisample alias merges remain unsupported.
 
 - Emulator title/scenario/touch, updated-game profile and opening scene were tested; no full playthrough or physical Adreno validation yet.
-- `GetGestureStates` is still a stub; pinch/gesture zoom is unavailable. Native tap input works in the updated menu.
+- `GetGestureStates` now supplies single-finger tap, press and pan history. Pinch/rotation/swipe recognition and gesture zoom remain unavailable; single-finger menu taps were checked in the emulator.
 - System text entry, full physical-gamepad analog support, background/Surface recovery, save management UI and shader warm-up UI remain unfinished.
 - VP9/Vorbis movies decode in software and may be slow in an ARM-translating emulator. AAC/H.264 adapters are unsupported.
 - The Vulkan adapter currently supports the title's upper-left origin/near-zero depth convention. Some generic newer NVN commands and sparse aliases are unsupported; this is not an all-Switch-games runtime release.
