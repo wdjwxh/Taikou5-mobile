@@ -48,6 +48,8 @@ Keep backups private. Test backup/restore before relying on a long playthrough. 
 
 ## Known limitations
 
+- Current v196608 character-details transition was observed aborting on `Partial CPU write aliases GPU-written texture; readback/merge required`. Earlier base-game screenshots do not establish current updated-build compatibility for this transition.
+
 - Emulator title/scenario/touch and earlier base-game opening scene were tested; no full playthrough or physical Adreno validation yet.
 - `GetGestureStates` is still a stub; pinch/gesture zoom is unavailable. Native tap input works in the updated menu.
 - System text entry, full physical-gamepad analog support, background/Surface recovery, save management UI and shader warm-up UI remain unfinished.

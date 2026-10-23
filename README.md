@@ -6,6 +6,24 @@
 
 Android 12+ · ARM64 · Vulkan 1.1 baseline · Switch title `0100346017304000`, update `v196608` · MIT (see third-party notices) · **No game content provided**
 
+## Screenshots
+
+Actual Android emulator captures. The title screen is from **0.1.2-preview / v196608**. The character profile and opening dialogue are from the **earlier base-v0 bring-up**, before the current touch overlay; they are not evidence that the latest updated build reaches those scenes. In the latest capture attempt, entering character details aborted on an unsupported partial CPU/GPU texture alias operation; see [validation notes](docs/VALIDATION.md).
+
+**Title screen — centered 16:9 with virtual controls**
+
+![Taikou Risshiden V DX title screen with centered game image and virtual joystick and A/B buttons](docs/screenshots/main-screen.png)
+
+**Kinoshita Tokichiro — introduction, attributes and skills (earlier base-game build)**
+
+![Kinoshita Tokichiro character profile showing biography, attributes and skills](docs/screenshots/kinoshita-profile.png)
+
+**First conversation outside Kiyosu Castle (earlier base-game build)**
+
+![Opening conversation: a ninja tells Kinoshita that Nobunaga is looking for him](docs/screenshots/opening-dialogue.png)
+
+Screenshots illustrate compatibility only. In-game artwork/text belong to their respective rights holders; the code license does not license game content. No playable game files are supplied. [Capture details](docs/screenshots/README.md).
+
 ## What is included
 
 - The compatibility runtime, Android shell and Vulkan replay backend.
