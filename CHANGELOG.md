@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3-preview — 2026-10-23
+
+- Merge GPU-owned image contents before partial CPU overwrites instead of aborting; preserve untouched mip/layer data and guest padding.
+- Keep full-overwrite and CPU-owned-image paths free of additional readback. Use a dedicated transfer allocation/fence so deferred slot writebacks cannot invalidate staging data.
+- Add an opt-in Vulkan integration fixture for one-byte writes, mip/layer/padding preservation, fast paths and deferred writebacks; public APK builds force it off.
+- Capture the updated v196608 character profile and opening dialogue with the current controls. Existing personal import ZIPs remain compatible.
+
 ## 0.1.2-preview — 2026-10-23
 
 - Launch the game directly when imported resources pass a lightweight file/size check; show import only for missing/invalid content.

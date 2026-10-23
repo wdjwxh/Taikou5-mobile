@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 project(dm_vulkan LANGUAGES C CXX)
+option(XBG_CPU_MERGE_TEST "Run the on-device GPU/CPU partial-write integration fixture once" OFF)
 set(E ${CMAKE_CURRENT_SOURCE_DIR}/engine)
 add_library(dm_vulkan_engine STATIC
  ${E}/xbg_game.cpp ${E}/xbg_shader_key.c ${E}/xbg_command_clone.c
@@ -12,5 +13,8 @@ target_compile_options(dm_vulkan_engine PRIVATE -O2 -fno-strict-aliasing -Wall -
 set_source_files_properties(${E}/xbg_texture.c PROPERTIES COMPILE_OPTIONS -fsigned-char)
 set_target_properties(dm_vulkan_engine PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(dm_vulkan_engine PUBLIC vulkan log)
+if(XBG_CPU_MERGE_TEST)
+  target_compile_definitions(dm_vulkan_engine PRIVATE XBG_CPU_MERGE_TEST=1)
+endif()
 # nvn_vk.c is compiled in dmcore (host compatibility flags); engine deliberately
 # reuses dmcore's nvn_tex.c / nvn_deswizzle.c rather than duplicate definitions.

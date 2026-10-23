@@ -30,3 +30,7 @@ python scripts/build_apk.py --ndk "D:/Tools/android-ndk-r28b" --jdk "D:/Tools/jd
 ## 游戏包单独生成
 
 [prepare_game.py](../scripts/prepare_game.py) 还需要 `requirements.txt`、.NET 10 和 SPIRV-Tools，使用仓库外的个人输入单独执行。详见[游戏文件说明](GAME_FILES.zh-CN.md)。构建 APK 不会调用游戏准备流程。
+
+## 可选 GPU 合并检查
+
+原生 CMake 构建设置 `-DXBG_CPU_MERGE_TEST=ON`，可在游戏首次呈现时运行一次真实 Vulkan 贴图合并检查；在 Android logcat 查看 `NVN CPUWRITE integration PASS`。需要已能启动的游戏，仅供开发使用；公开 APK 构建脚本明确关闭此选项。

@@ -1475,14 +1475,99 @@ uint64_t hash_memory(const void *memory,size_t n){CPU_SCOPE(Hash);const uint8_t 
     uint64_t h[4]={1469598103934665603ull,0x9e3779b97f4a7c15ull,0xc2b2ae3d27d4eb4full,0x165667b19e3779f9ull};size_t i=0;
     for(;i+32<=n;i+=32){for(unsigned k=0;k<4;k++){uint64_t w;memcpy(&w,p+i+8*k,8);h[k]=(h[k]^w)*0x100000001b3ull;h[k]^=h[k]>>29;}}
     uint64_t hash=h[0]^(h[1]*3)^(h[2]*5)^(h[3]*7)^n;for(;i<n;i++){hash^=p[i];hash*=1099511628211ull;}return hash;}
+// Only an explicit partial CPU overwrite needs the old GPU pixels in guest storage.
+// Use private transfer objects: this can run while retiring a frame-slot writeback,
+// so borrowing/resetting a frame-slot arena here would recurse or invalidate its caller.
+uint64_t cpu_image_merges=0,cpu_image_merge_bytes=0;
+void merge_gpu_image_for_cpu_write(Image &im,uint64_t address,uint64_t bytes){
+    need(im.source.mem && im.source.L.size && im.source.L.size<=256ull*1024*1024,"Invalid CPU/GPU texture merge storage");
+    need(im.samples==VK_SAMPLE_COUNT_1_BIT && !im.decoded,"CPU/GPU texture merge needs an uncompressed or native-block single-sample image");
+    struct Part{uint32_t level,layer,w,h,z;size_t row,rows,depth_off,stencil_off;};
+    std::vector<Part> parts;std::vector<VkBufferImageCopy> copies;
+    xbg_depth_format depth{};bool is_depth=xbg_depth_format_info(im.source.d.format,&depth)==0;
+    int bw=1,bh=1,bpb=nvn_fmt_bpb(im.source.d.format,&bw,&bh);
+    need(bpb>0,"Unknown CPU/GPU merge format");
+    std::vector<uint8_t> merged(im.source.L.size);memcpy(merged.data(),im.source.mem,merged.size());
+    size_t total=0;
+    for(uint32_t layer=0;layer<im.layers;layer++)for(uint32_t level=0;level<im.levels;level++){
+        uint32_t w=std::max(1u,im.width>>level),h=std::max(1u,im.height>>level),z=std::max(1u,im.depth>>level);
+        Part part{level,layer,w,h,z,size_t((w+bw-1)/bw)*size_t(bpb),size_t((h+bh-1)/bh),0,0};
+        auto plane=[&](VkImageAspectFlags aspect,size_t length,size_t alignment){
+            total=(total+alignment-1)/alignment*alignment;size_t offset=total;
+            need(total<=256ull*1024*1024 && length<=256ull*1024*1024-total,"CPU/GPU merge staging exceeds bound");total+=length;
+            VkBufferImageCopy copy{};copy.bufferOffset=offset;copy.imageSubresource={aspect,level,layer,1};copy.imageExtent={w,h,z};copies.push_back(copy);return offset;
+        };
+        if(is_depth){
+            size_t pixels=size_t(w)*h*z;
+            if(depth.depth_bytes)part.depth_off=plane(VK_IMAGE_ASPECT_DEPTH_BIT,pixels*((im.source.d.format==0x32&&depth16_as_d24)?4:depth.depth_bytes),4);
+            if(depth.stencil_bytes)part.stencil_off=plane(VK_IMAGE_ASPECT_STENCIL_BIT,pixels*depth.stencil_bytes,4);
+        }else{
+            size_t alignment=4;while(alignment%size_t(bpb))alignment+=4;
+            part.depth_off=plane(VK_IMAGE_ASPECT_COLOR_BIT,part.row*part.rows*z,alignment);
+        }
+        parts.push_back(part);
+    }
+    // Queue order includes all prior game work, without retiring/reusing either slot.
+    submit_slots(false);
+    Arena arena;arena.cached=true;ArenaChunk chunk=arena.make(total);
+    VkCommandPool pool{};VkCommandPoolCreateInfo pci{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};pci.queueFamilyIndex=cfg.queue_family;
+    VK(vkCreateCommandPool(cfg.device,&pci,nullptr,&pool));
+    VkCommandBuffer command{};VkCommandBufferAllocateInfo cai{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};cai.commandPool=pool;cai.level=VK_COMMAND_BUFFER_LEVEL_PRIMARY;cai.commandBufferCount=1;
+    VK(vkAllocateCommandBuffers(cfg.device,&cai,&command));
+    VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};begin.flags=VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;VK(vkBeginCommandBuffer(command,&begin));
+    VkImageLayout saved=im.layout;im.transition(command,VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    vkCmdCopyImageToBuffer(command,im.image,im.layout,chunk.buffer,uint32_t(copies.size()),copies.data());
+    im.transition(command,saved);
+    VkMemoryBarrier host{VK_STRUCTURE_TYPE_MEMORY_BARRIER};host.srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;host.dstAccessMask=VK_ACCESS_HOST_READ_BIT;
+    vkCmdPipelineBarrier(command,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_HOST_BIT,0,1,&host,0,nullptr,0,nullptr);VK(vkEndCommandBuffer(command));
+    VkFence fence{};VkFenceCreateInfo fci{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};VK(vkCreateFence(cfg.device,&fci,nullptr,&fence));
+    VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};submit.commandBufferCount=1;submit.pCommandBuffers=&command;
+    VK(vkQueueSubmit(cfg.queue,1,&submit,fence));++perf.submits;++perf.sync_readback;++perf.waits;
+    VK(vkWaitForFences(cfg.device,1,&fence,VK_TRUE,UINT64_MAX));
+    if(!chunk.coherent){VkMappedMemoryRange range{VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE};range.memory=chunk.memory;range.size=VK_WHOLE_SIZE;VK(vkInvalidateMappedMemoryRanges(cfg.device,1,&range));}
+    for(const Part &part:parts){
+        std::vector<uint8_t> packed;const uint8_t *linear=chunk.mapped+part.depth_off;
+        if(im.source.d.flags&0x10){
+            need(part.level==0&&part.layer==0&&part.z==1,"Linear CPU/GPU merge mip/layer/volume unsupported");
+            size_t pitch=im.source.d.stride?im.source.d.stride:(part.row+31)&~size_t(31);
+            need(pitch>=part.row&&pitch<=merged.size()/part.rows,"Linear CPU/GPU merge storage extent invalid");
+        }
+        if(is_depth){
+            packed.resize(part.row*part.rows*part.z);
+            if(im.source.d.flags&0x10){size_t pitch=im.source.d.stride?im.source.d.stride:(part.row+31)&~size_t(31);for(uint32_t y=0;y<part.h;y++)memcpy(packed.data()+y*part.row,merged.data()+y*pitch,part.row);}
+            else need(nvn_deswizzle(&im.source.d,part.level,part.layer,merged.data(),packed.data(),part.row)==0,"Depth merge deswizzle failed");
+            const void *dp=depth.depth_bytes?chunk.mapped+part.depth_off:nullptr,*sp=depth.stencil_bytes?chunk.mapped+part.stencil_off:nullptr;
+            size_t pixels=size_t(part.w)*part.h*part.z;std::vector<uint16_t> d16;
+            if(im.source.d.format==0x32&&depth16_as_d24){d16.resize(pixels);for(size_t i=0;i<pixels;i++){uint32_t value;memcpy(&value,static_cast<const uint8_t*>(dp)+4*i,4);d16[i]=uint16_t(d24_to_d16(value));}dp=d16.data();}
+            need(xbg_depth_merge(im.source.d.format,part.w,part.h,part.z,packed.data(),packed.size(),part.row,part.row*part.rows,dp,pixels*depth.depth_bytes,sp,pixels*depth.stencil_bytes)==0,"Depth merge packing failed");
+            linear=packed.data();
+        }
+        if(im.source.d.flags&0x10){
+            need(part.level==0&&part.layer==0&&part.z==1,"Linear CPU/GPU merge mip/layer/volume unsupported");
+            size_t pitch=im.source.d.stride?im.source.d.stride:(part.row+31)&~size_t(31);
+            need(pitch>=part.row&&pitch*part.rows<=merged.size(),"Linear CPU/GPU merge storage extent invalid");
+            for(size_t y=0;y<part.rows;y++)memcpy(merged.data()+y*pitch,linear+y*part.row,part.row);
+        }else need(nvn_swizzle(&im.source.d,part.level,part.layer,linear,part.row,merged.data())==0,"CPU/GPU merge swizzle failed");
+    }
+    vkDestroyFence(cfg.device,fence,nullptr);vkDestroyCommandPool(cfg.device,pool,nullptr);Arena::destroy(chunk);
+    uint64_t base=uintptr_t(im.source.mem),end=base+merged.size();
+    uint64_t first=std::max(base,address),last=std::min(end,address+bytes);
+    // The caller supplies the overwrite next. Preserve its CPU bytes until then;
+    // only the untouched prefix/suffix are brought current from the GPU snapshot.
+    if(first>base)memcpy(im.source.mem,merged.data(),size_t(first-base));
+    if(last<end)memcpy(im.source.mem+(last-base),merged.data()+(last-base),size_t(end-last));
+    snapshot_invalidate(base,merged.size());
+    ++cpu_image_merges;cpu_image_merge_bytes+=total;
+    if(cpu_image_merges<=12)xbg_logf("NVN CPUWRITE merge count=%llu op=%u serial=%llu format=%#x readback=%zu overwrite=%llu totalReadback=%llu",(unsigned long long)cpu_image_merges,cur_op,(unsigned long long)im.source.serial,im.source.d.format,total,(unsigned long long)bytes,(unsigned long long)cpu_image_merge_bytes);
+}
 void invalidate_cpu_range(uint64_t address,uint64_t bytes){CPU_SCOPE(CpuWrite);
     need(address+bytes>=address,"CPU write range overflow");cpu_access(address,bytes,4);snapshot_invalidate(address,bytes);
-    for_images_overlapping(address,bytes,[&](Image &im){if(draw_detail)draw_timing.image();uint64_t begin=uintptr_t(im.source.mem),end=begin+im.source.L.size;
-        // A full storage overwrite replaces the prior GPU contents. A partial
-        // overwrite requires GPU-to-NVN readback/merge before applying CPU data.
-        need(!im.gpu_written || (address<=begin && address+bytes>=end),"Partial CPU write aliases GPU-written texture; readback/merge required");
+    std::vector<Image*> overlap;for_images_overlapping(address,bytes,[&](Image &im){if(std::find(overlap.begin(),overlap.end(),&im)==overlap.end())overlap.push_back(&im);});
+    std::sort(overlap.begin(),overlap.end(),[](Image *a,Image *b){return a->provenance_writer<b->provenance_writer;});
+    for(Image *image:overlap){Image &im=*image;if(draw_detail)draw_timing.image();uint64_t begin=uintptr_t(im.source.mem),end=begin+im.source.L.size;
+        if(im.gpu_written && !(address<=begin && address+bytes>=end))merge_gpu_image_for_cpu_write(im,address,bytes);
         im.gpu_written=false;provenance_write(im,__LINE__);im.uploaded=false;im.checked_submission=UINT64_MAX;
-    });
+    }
 }
 
 bool resolving_pending=false;
@@ -3280,7 +3365,7 @@ void copy_texture_buffer(const p_copy_b2t &request,bool to_buffer){preflight_cpu
     if(!to_buffer){
         int bw=1,bh=1;int bpb=nvn_fmt_bpb(p.tex->d.format,&bw,&bh);xbg_depth_format depth;
         if(xbg_depth_format_info(p.tex->d.format,&depth)==0){bw=bh=1;bpb=int(depth.packed_bytes);}
-        size_t row,image,bytes;
+        size_t row=0,image=0,bytes=0;
         need(bpb>0 && nvn_copy_pitch(p.r.width,p.r.height,p.r.depth,bw,bh,bpb,state.copy_stride,state.copy_image_stride,&row,&image,&bytes) && bytes<=256ull*1024*1024,"Invalid buffer image CPU read range");
         cpu_access(p.src,bytes,9);
     }
@@ -3971,7 +4056,14 @@ extern "C" int xbg_legacy_wait(uint64_t fence,uint64_t timeout){
     return fence<=completed;
 }
 extern "C" void xbg_legacy_finish(){gfx_drain();std::lock_guard<std::recursive_mutex> lock(mutex);need(initialized,"Queue finish before Vulkan initialization");++perf.why_finish;complete_all();VK(vkQueueWaitIdle(cfg.queue));}
-static void xbg_present_texture_now(const win_t *window,const tex_t *texture){std::lock_guard<std::recursive_mutex> lock(mutex);preflight_cpu_reads();{SiteScope site(SITE_PRESENT);cur_op=61;TimingRoot timing_root;CPU_SCOPE(Other);need(initialized&&cfg.present,"Game presentation callback not installed");uint64_t present_begin=timing_clock();Image &im=get_image(texture,false);need(im.gpu_written,"Game tried to present a texture never rendered");Commands c;im.transition(c.command,VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);c.finish();submit_slots(false);int r;{CPU_SCOPE(Present);r=cfg.present(cfg.userdata,window->native,im.image,im.fmt,im.width,im.height,window->crop,window->interval);}if(r)xbg_fatalf("Game presentation failed: %d",r);++stats.presents;if(pass_prof_enabled && stats.presents.load()==pass_prof_frame)xbg_logf("NVN GPASS boundary frame=%llu slots=%u skipped_slots=%u reserved_queries=%u max_queries=%u max_slots=%u",(unsigned long long)pass_prof_frame,pass_prof_slots,pass_prof_skipped_slots,pass_prof_queries,pass_prof_query_limit,pass_prof_slot_limit);perf.present_cpu_ns+=timing_clock()-present_begin;perf_frame();if(provenance_file && stats.presents.load()>=provenance.target)provenance_close("END");if(capture.trace && stats.presents==capture.frame){capture_log("END frame=%llu events=%u bytes=%llu presentedSerial=%llu image=%p",(unsigned long long)capture.frame,capture.events,(unsigned long long)capture.bytes,(unsigned long long)texture->serial,(void*)im.image);fclose(capture.trace);capture.trace=nullptr;capture.active=false;xbg_logf("NVN one-frame capture complete frame=%llu events=%u bytes=%llu",(unsigned long long)capture.frame,capture.events,(unsigned long long)capture.bytes);}}timing_boundary();}
+#if XBG_CPU_MERGE_TEST
+#include "../tests/cpu_image_merge.h"
+#endif
+static void xbg_present_texture_now(const win_t *window,const tex_t *texture){std::lock_guard<std::recursive_mutex> lock(mutex);preflight_cpu_reads();{SiteScope site(SITE_PRESENT);cur_op=61;TimingRoot timing_root;CPU_SCOPE(Other);need(initialized&&cfg.present,"Game presentation callback not installed");uint64_t present_begin=timing_clock();Image &im=get_image(texture,false);need(im.gpu_written,"Game tried to present a texture never rendered");
+#if XBG_CPU_MERGE_TEST
+cpu_image_merge_test();
+#endif
+Commands c;im.transition(c.command,VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);c.finish();submit_slots(false);int r;{CPU_SCOPE(Present);r=cfg.present(cfg.userdata,window->native,im.image,im.fmt,im.width,im.height,window->crop,window->interval);}if(r)xbg_fatalf("Game presentation failed: %d",r);++stats.presents;if(stats.presents.load()%300==0)xbg_logf("NVN CPUWRITE totals merges=%llu readbackBytes=%llu",(unsigned long long)cpu_image_merges,(unsigned long long)cpu_image_merge_bytes);if(pass_prof_enabled && stats.presents.load()==pass_prof_frame)xbg_logf("NVN GPASS boundary frame=%llu slots=%u skipped_slots=%u reserved_queries=%u max_queries=%u max_slots=%u",(unsigned long long)pass_prof_frame,pass_prof_slots,pass_prof_skipped_slots,pass_prof_queries,pass_prof_query_limit,pass_prof_slot_limit);perf.present_cpu_ns+=timing_clock()-present_begin;perf_frame();if(provenance_file && stats.presents.load()>=provenance.target)provenance_close("END");if(capture.trace && stats.presents==capture.frame){capture_log("END frame=%llu events=%u bytes=%llu presentedSerial=%llu image=%p",(unsigned long long)capture.frame,capture.events,(unsigned long long)capture.bytes,(unsigned long long)texture->serial,(void*)im.image);fclose(capture.trace);capture.trace=nullptr;capture.active=false;xbg_logf("NVN one-frame capture complete frame=%llu events=%u bytes=%llu",(unsigned long long)capture.frame,capture.events,(unsigned long long)capture.bytes);}}timing_boundary();}
 extern "C" void xbg_legacy_read_texels(const tex_t *t,unsigned level,unsigned layer,const NVNcopyRegion *r,uint8_t *dst,size_t row,size_t image){gfx_drain();std::lock_guard<std::recursive_mutex> lock(mutex);preflight_cpu_reads();need(t&&r&&dst,"Invalid ReadTexels arguments");auto found=images.find(t->serial);if(found==images.end() || !found->second->gpu_written){int bw,bh,bpp=nvn_fmt_bpb(t->d.format,&bw,&bh);need(bpp && r->xoffset==0 && r->yoffset==0 && r->zoffset==0 && r->depth==1 && uint32_t(r->width)==std::max(1u,t->d.width>>level) && uint32_t(r->height)==std::max(1u,t->d.height>>level),"CPU ReadTexels partial region unsupported");need(!(t->d.flags&0x10),"Linear CPU ReadTexels not implemented");need(nvn_deswizzle(&t->d,level,layer,t->mem,dst,row)==0,"ReadTexels deswizzle failed");}
     else{p_copy_b2t p{};p.src=uint64_t(dst);p.tex=t;p.has_view=1;p.view.set_levels=p.view.set_layers=1;p.view.base_level=level;p.view.nlevels=1;p.view.min_layer=layer;p.view.nlayers=1;p.r=*r;int64_t old=state.copy_stride,old_image=state.copy_image_stride;state.copy_stride=row;state.copy_image_stride=image;copy_texture_buffer(p,true);state.copy_stride=old;state.copy_image_stride=old_image;}}
 

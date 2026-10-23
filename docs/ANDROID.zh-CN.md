@@ -48,9 +48,9 @@ python -c "import subprocess,pathlib; pathlib.Path('taikou-save.tar').write_byte
 
 ## 已知限制
 
-- 本次观察到 v196608 进入人物详情时因 `Partial CPU write aliases GPU-written texture; readback/merge required` 退出；此前本体截图不代表当前更新版已通过该流程。
+- 0.1.3-preview 已支持对 GPU 持有贴图的 CPU 部分写入合并；已解码 BC 的重新编码、多重采样贴图别名合并尚不支持。
 
-- 已验证模拟器标题、剧本选择与触摸，以及此前本体的开场场景；未完整通关或进行 Adreno 真机验证。
+- 已验证模拟器标题、剧本选择与触摸，以及更新版的人物属性和开场场景；未完整通关或进行 Adreno 真机验证。
 - `GetGestureStates` 仍为空实现，双指缩放等手势尚不可用；更新版菜单的原生点击已验证。
 - 系统文字输入、实体手柄完整模拟轴、后台及 Surface 恢复、存档管理 UI、着色器预热 UI 尚未完善。
 - VP9/Vorbis 影片走软件解码，在翻译 ARM 的模拟器上可能较慢；AAC/H.264 适配不支持。

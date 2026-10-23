@@ -17,3 +17,14 @@ Cutout correction (0.1.1-preview): enabled a left-cutout emulator overlay at 260
 Automatic startup (0.1.2-preview): cold-started the final shell with previously verified imported resources. It directly created the game Surface, without the import/Play launcher, in approximately 765 ms Activity startup time on this emulator. The full-screen 2608×1200 window and (237,0,2133,1200) Surface bounds were retained. This timing is Activity startup, not time to the game menu.
 
 README capture follow-up (2026-10-23): the current v196608 / 0.1.2-preview build reached scenario and protagonist selection, but confirming Kinoshita Tokichiro then aborted with `Partial CPU write aliases GPU-written texture; readback/merge required`. The README therefore uses the prior base-v0 profile and opening-dialogue captures with explicit build labels. This observed updated-build limitation is not resolved by the documentation change.
+
+
+## Partial texture alias fix (0.1.3-preview)
+
+The 0.1.2 failure above was intermittent; successful scene navigation alone does not prove the alias path. An opt-in integration fixture on emulator-5556 exercised actual Vulkan image copies: a 17×9 RGBA8 image with three mips and two layers, a one-byte CPU overwrite, every preserved pixel and padding byte, CPU-owned/full-overwrite fast paths, and a deferred slot writeback. Both required merges passed (1,544 bytes each); fast paths added no merges.
+
+The public build disables the fixture. That APK reached the v196608 Kinoshita profile and opening ninja conversation, with the process alive and sampled CPUWRITE counters at zero merges/zero readback bytes. This verifies those scenes without adding recurring readback; it is not a complete playthrough. Partial merges of decoded BC or multisample images remain unsupported.
+
+The same-signature 0.1.3 APK was installed on the connected phone. Resource import and phone gameplay/performance remain pending. The earlier statement about CI describes initial local validation; the hosted workflow has since run successfully.
+
+中文：新增真实 Vulkan 定向检查，验证单字节覆盖、多级 mip/多层贴图、填充保留，以及延迟写回；两个必要合并均通过，完整覆盖和 CPU 持有路径无额外回读。关闭检查的公开 APK 已在模拟器进入更新版人物属性及忍者开场对话，采样期间合并和回读计数均为零。新版已覆盖安装到手机，手机资源导入和实际运行尚待验证。

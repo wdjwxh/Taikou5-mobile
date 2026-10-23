@@ -30,3 +30,7 @@ The build is scriptable, but byte-for-byte reproducibility is not claimed (ZIP t
 ## Separate game preparation
 
 [prepare_game.py](../scripts/prepare_game.py) additionally needs `requirements.txt`, .NET 10 and SPIRV-Tools. It runs separately using personal inputs outside the source tree. See [GAME_FILES](GAME_FILES.md). The APK build never calls game preparation.
+
+## Optional GPU merge check
+
+Configure the native CMake build with `-DXBG_CPU_MERGE_TEST=ON` to run the one-shot Vulkan image-merge fixture at first present; inspect Android logcat for `NVN CPUWRITE integration PASS`. It requires a running game and is for development only. The public APK script explicitly sets this option OFF.

@@ -25,7 +25,7 @@ def main():
     run(sys.executable, ROOT / 'dm/games/game.py', 'header', '0100346017304000', gen / 'game_profile.h')
     run(a.cmake, '-S', ROOT / 'dm/android', '-B', native, '-G', 'Ninja',
         f'-DCMAKE_TOOLCHAIN_FILE={a.ndk.resolve() / "build/cmake/android.toolchain.cmake"}',
-        '-DANDROID_ABI=arm64-v8a', '-DANDROID_PLATFORM=android-31', f'-DNX_GEN_DIR={gen}', '-DCMAKE_BUILD_TYPE=RelWithDebInfo')
+        '-DANDROID_ABI=arm64-v8a', '-DANDROID_PLATFORM=android-31', '-DXBG_CPU_MERGE_TEST=OFF', f'-DNX_GEN_DIR={gen}', '-DCMAKE_BUILD_TYPE=RelWithDebInfo')
     run(a.cmake, '--build', native, '--target', 'taikou', '-j', a.jobs)
     run(sys.executable, ROOT / 'dm/android/tools/package_bringup.py', '--build', native, '--output', apk,
         '--build-tools', a.build_tools.resolve(), '--jdk', a.jdk.resolve(), '--android-jar', a.android_jar.resolve())
