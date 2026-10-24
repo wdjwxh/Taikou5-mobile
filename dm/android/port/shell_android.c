@@ -7,6 +7,10 @@
 #include <android/native_window_jni.h>
 #include <stdatomic.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <time.h>
+#include <android/log.h>
+#include "runtime_log.h"
 static _Atomic(void *) window;
 static _Atomic int refresh_mhz;
 int dm_main(int argc,char **argv);
@@ -21,7 +25,21 @@ static _Atomic int guest_started;
 static void *run(void *unused){(void)unused;char p[4096];
 #define ENV(name,sub) snprintf(p,sizeof p,"%s/" sub,root);setenv(name,p,1)
 setenv("DM_TOUCH_LOG","0",1);setenv("DM_LANG","zh-CN",1);setenv("DM_OPMODE","0",1);ENV("DM_ROMFS","RomFS");ENV("DM_SAVE","../save");ENV("DM_TEMP","temp");ENV("DM_SHADERS","shaders");
-snprintf(p,sizeof p,"%s/log.txt",root);freopen(p,"w",stderr);setvbuf(stderr,NULL,_IOLBF,0);
+// Preserve the previous crash before opening a new session. If rotation fails,
+// append instead of truncating the existing evidence.
+int log_rotated=dm_rotate_runtime_log(root,"log.txt")==0;
+int log_error=log_rotated?0:errno;
+snprintf(p,sizeof p,"%s/log.txt",root);
+if(!freopen(p,log_rotated?"w":"a",stderr)){
+    __android_log_print(ANDROID_LOG_ERROR,"TaikouDiagnostics","Cannot open runtime log: %s",strerror(errno));return NULL;
+}
+setvbuf(stderr,NULL,_IOLBF,0);
+fprintf(stderr,"[session] pid=%d unix_seconds=%lld build=%s %s previous_logs=3 rotation_error=%d\n",(int)getpid(),(long long)time(NULL),__DATE__,__TIME__,log_error);
+int crash_rotated=dm_rotate_runtime_log(root,"crash.txt")==0;
+snprintf(p,sizeof p,"%s/crash.txt",root);
+int crash_fd=open(p,O_WRONLY|O_CREAT|O_APPEND|O_CLOEXEC|(crash_rotated?O_TRUNC:0),0600);
+if(crash_fd>=0){dprintf(crash_fd,"[session] pid=%d unix_seconds=%lld\n",(int)getpid(),(long long)time(NULL));crash_set_report_fd(crash_fd);}
+else fprintf(stderr,"[diagnostics] Cannot open emergency crash log: %s\n",strerror(errno));
 snprintf(p,sizeof p,"%s/shaders",root);char error[1024];if(dm_android_vk_initialize(p,error,sizeof error)){fprintf(stderr,"[RED] Vulkan initialization: %s\n",error);return NULL;}
 snprintf(p,sizeof p,"%s/out",root);char *argv[]={"taikou",p,"main","subsdk0","sdk",NULL};dm_main(5,argv);return NULL;}
 JNIEXPORT void JNICALL Java_org_nxnative_taikou_MainActivity_start(JNIEnv *e,jclass c,jstring path){(void)c;

@@ -60,6 +60,15 @@ Keep backups private. Test backup/restore before relying on a long playthrough. 
 
 For an import error, check the version and complete merged RomFS first; do not rename missing files to satisfy checks. For a crash, report device, Android/GPU driver, module build IDs, the exact action and a redacted log. Do not attach game packages or saves.
 
+## Retained runtime diagnostics
+
+Runtime diagnostics retain `log.txt` and three previous sessions (`log.txt.1`
+through `.3`) in `files/game/current/`. The newest previous session is `.1`.
+`crash.txt` independently records a minimal signal/address/PC/LR/SP header
+without stdio locks and rotates the same way. Detailed crash reports remain in
+the runtime log. Collect both promptly; system kills and failures before handler
+installation may leave no crash header. Keep these private logs outside source.
+
 ## Display centering
 
 The window extends into the cutout area. The 16:9 game viewport is fitted to the entire window without cutout insets; only virtual controls avoid the cutout bounds. On a 2608×1200 landscape screen the viewport is 2133×1200 with 237/238 px side margins (one-pixel rounding). Touch uses the same viewport. The launcher uses symmetric safe padding.

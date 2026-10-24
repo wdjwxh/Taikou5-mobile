@@ -76,6 +76,8 @@ void dm_guest_frame_tick(void);        // Called on every present (hle_nvn.c): w
 uint64_t dm_nvn_frame_count(void);
 uint64_t dm_nvn_sub_cpu_ns(void);     // Cumulative CPU nanoseconds of submit (excluding present)
 void dm_backtrace(uint64_t fp);
+// Optional pre-opened emergency signal log; caller retains the fd until exit.
+void crash_set_report_fd(int fd);
 void crash_watch_progress(uint32_t tick, const char *stage);
 void crash_watch_frame(void);
 void crash_watch_pregame_done(void);

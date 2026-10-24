@@ -49,6 +49,11 @@ extern "C" int xbg_clear_rectangle(uint32_t width,uint32_t height,int32_t x,int3
     if(left>width)left=width;if(top>height)top=height;if(right>width)right=width;if(bottom>height)bottom=height;
     VkRect2D r{{int32_t(left),int32_t(top)},{uint32_t(right>left?right-left:0),uint32_t(bottom>top?bottom-top:0)}};*out=r;return 0;
 }
+extern "C" void xbg_scissor_state(int32_t x,int32_t y,int32_t w,int32_t h,VkRect2D *out){
+    // Match the reference replay's signed intersection: a reversed interval is
+    // empty, never a huge unsigned rectangle or a request to disable scissoring.
+    *out={{x,y},{w>0?uint32_t(w):0u,h>0?uint32_t(h):0u}};
+}
 extern "C" int xbg_texture_clear_slice(uint32_t width,uint32_t height,uint32_t layers,uint32_t base,int32_t x,int32_t y,int32_t z,int32_t w,int32_t h,int32_t depth,uint32_t slice,VkRect2D *rect,uint32_t *layer){
     if(!rect || !layer || x<0 || y<0 || z<0 || w<=0 || h<=0 || depth<=0 || slice>=uint32_t(depth))return -1;
     if(uint64_t(x)+w>width || uint64_t(y)+h>height || uint64_t(base)+z+depth>layers)return -2;

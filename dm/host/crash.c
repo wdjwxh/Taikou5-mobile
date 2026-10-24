@@ -12,6 +12,10 @@
 #include <mach/mach.h>
 #include <stdatomic.h>
 #include <time.h>
+#include "crash_note.h"
+
+static _Atomic int g_crash_report_fd = -1;
+void crash_set_report_fd(int fd) { atomic_store(&g_crash_report_fd, fd); }
 
 static _Atomic uint64_t g_watch_last_ns;
 static _Atomic uint64_t g_watch_count;
@@ -137,6 +141,9 @@ static void on_crash(int sig, siginfo_t *si, void *uc_) {
         int is_write = (int)((nx_ucontext_esr(uc) >> 6) & 1);   // The WnR bit of ESR
         for (int i = 0; i < g_nfault_hook; i++) if (g_fault_hook[i](si->si_addr, is_write, uc)) return;
     }
+    dm_crash_note_fd(atomic_load(&g_crash_report_fd), sig, si->si_code,
+        (uint64_t)(uintptr_t)si->si_addr, uc->uc_mcontext.pc,
+        uc->uc_mcontext.regs[30], uc->uc_mcontext.sp);
     crash_gate(sig);
     // The stderr lock may be held by another thread (stuck or suspended): the fprintf below would hang with it, the time limit's SIGALRM could not end the run, and the log would get nothing.
     // If it still cannot be taken after 1 s, write a single line with write() (pc / lr as module offsets) and exit. When this thread itself holds the lock, ftrylockfile still succeeds (file locks are recursive), unaffected

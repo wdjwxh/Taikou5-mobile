@@ -3685,7 +3685,9 @@ void execute(const uint8_t *pc,unsigned depth,uint64_t &budget){
         case OP_COUNT_+9:{auto a=payload<xbg_typed_clear>(p,n);clear_attachment(&a.color,nullptr,a.scalar);break;}
         case OP_CLEAR_DS:{auto a=payload<p_clear_ds>(p,n);clear_attachment(nullptr,&a);break;}
         case OP_VIEWPORTS:{auto a=payload<p_viewports>(p,n);need(a.first==0 && a.n==1,"Multiple viewports unsupported");state.viewport.x=a.v[0][0];state.viewport.y=a.v[0][1];state.viewport.width=a.v[0][2];state.viewport.height=a.v[0][3];break;}
-        case OP_SCISSOR:{auto a=payload<p_scissor>(p,n);need(a.w>=0 && a.h>=0,"Invalid scissor dimensions");state.scissor={{a.x,a.y},{uint32_t(a.w),uint32_t(a.h)}};break;}
+        case OP_SCISSOR:{auto a=payload<p_scissor>(p,n);
+            if(a.w<0 || a.h<0){static unsigned logged=0;if(logged++<8)xbg_logf("NVN empty signed scissor x=%d y=%d width=%d height=%d frame=%llu",a.x,a.y,a.w,a.h,(unsigned long long)stats.presents.load());}
+            xbg_scissor_state(a.x,a.y,a.w,a.h,&state.scissor);break;}
         case OP_DEPTH_RANGE:{auto a=payload<p_depth_range>(p,n);state.viewport.minDepth=a.n;state.viewport.maxDepth=a.f;break;}
         case OP_BIND_PROGRAM:{CPU_SCOPE(Program);auto a=payload<p_bind_program>(p,n);need(!a.prog || a.prog->nstage<=6,"Invalid bound program");for(unsigned st=0;st<6;st++)if(a.stages&(1u<<nvn_stage[st]))state.shader[st]=nullptr;if(!a.prog)break;const std::array<Shader*,6> &loaded=program_shaders(a.prog);for(unsigned i=0;i<a.prog->nstage;i++){Shader *s=loaded[i];if(a.stages&(1u<<nvn_stage[s->stage]))state.shader[s->stage]=s;}break;}
         case OP_BIND_STATE:{auto a=payload<p_bind_state>(p,n);switch(a.kind){case 0:{blend_st b;memcpy(&b,a.bytes,sizeof(b));state.blend[b.target]=b;break;}case 1:memcpy(&state.color,a.bytes,sizeof(state.color));break;case 2:memcpy(&state.mask,a.bytes,sizeof(state.mask));break;case 3:memcpy(&state.ms,a.bytes,sizeof(state.ms));break;case 4:memcpy(&state.poly,a.bytes,sizeof(state.poly));break;case 5:memcpy(&state.ds,a.bytes,sizeof(state.ds));break;default:xbg_fatalf("Unknown NVN state object %d",a.kind);}break;}

@@ -84,7 +84,7 @@ void pin_update(){
     if(changed || pin_drifts<=4 || (r && pin_failures<=4))__android_log_print(ANDROID_LOG_INFO,"dm-vulkan","NVN pin tid=%d %s mask=%x result=%d errno=%d drifts=%u failures=%u",int(gettid()),want?"pinned":"released",want?pin_mask:0u,r,err,pin_drifts,pin_failures);
 }
 void log_message(void*,const char *text){__android_log_print(ANDROID_LOG_INFO,"dm-vulkan","%s",text);}
-[[noreturn]] void fatal(void*,const char *text){__android_log_print(ANDROID_LOG_FATAL,"dm-vulkan","%s",text);abort();}
+[[noreturn]] void fatal(void*,const char *text){fprintf(stderr,"[vk] FATAL: %s\n",text);fflush(stderr);__android_log_print(ANDROID_LOG_FATAL,"dm-vulkan","%s",text);abort();}
 void destroy_present_semaphores(){for(auto s:finished)if(s)vkDestroySemaphore(device,s,nullptr);finished.clear();}
 // 调用者先等队列空闲；基础WSI销毁仍沿用WaitIdle惯例，不声称提供呈现栅栏保证。
 // Call only after queue idle. Base WSI teardown follows the WaitIdle convention,

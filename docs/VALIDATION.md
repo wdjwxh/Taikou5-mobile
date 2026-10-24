@@ -2,6 +2,32 @@
 
 This records completed checks, not a promise of full compatibility.
 
+## Tea-study crash investigation — 2026-10-24
+
+The phone reproduced an abort at 15:50:15 while studying tea ceremony. The new
+emergency record and retained runtime log captured SIGABRT and the native stack;
+logcat identified `FATAL: Invalid scissor dimensions` in Vulkan replay, rather
+than a system low-memory kill. Previous-session rotation was also verified on
+the phone. The previous abort's full runtime log had been overwritten by restart.
+
+Signed NVN scissor widths/heights are now normalized to zero when non-positive,
+matching the reference replay's empty signed-interval intersection. Positive
+rectangles retain the existing framebuffer clipping. Negative cases log their
+raw coordinates and dimensions (at most eight per process). Vulkan fatal text
+also goes to the retained runtime log before aborting. A standalone Android
+fixture compared signed intersections across negative, zero, offscreen and
+integer-boundary inputs; all 6561 cases passed. The APK passed build, signing,
+source/private-content and APK CRC checks, and emulator startup. The revised
+APK was installed on the phone; successful completion of tea study is pending
+the user's next reproduction. No claim of that gameplay fix is made yet.
+
+中文：真机学习茶道时已抓到 `Invalid scissor dimensions`，是 Vulkan 兼容层主动终止，
+并非系统内存不足杀进程。修订按参考实现把非正尺寸裁剪矩形视为空区域；6561 个有符号
+交集／边界用例通过，构建、APK 检查及模拟器启动通过，已覆盖安装真机。
+茶道流程是否恢复仍待用户实测，当前不宣称已验证修复。
+
+## Earlier validation
+
 - Built the ARM64 shell from this independent source directory with NDK r28b, JDK 17 and CMake/Ninja; APK alignment/signature verification passed.
 - Ran scripts/prepare_game.py against original v196608 ExeFS and the complete composed update RomFS. Original module segment hashes passed; all three modules were rewritten for Android. All 212 shaders translated and passed Vulkan 1.1 validation. The roughly 3.3 GiB personal ZIP stayed outside the source tree.
 - Installed the shell into a fresh Android 34 emulator with a clean app-data directory. Selected the personal ZIP through Android's system document picker. The complete import passed size/hash/build checks and enabled Play.
